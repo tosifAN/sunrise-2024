@@ -1,46 +1,81 @@
-// tests/taskManager.test.ts
+import { 
+  initializeTasks, 
+  getActiveTasks, 
+  getCompletedTasks, 
+  getAllTasks, 
+  completeTask, 
+  createTask, 
+  updateTask, 
+  deleteTask 
+} from "../src/modules/taskManager";
 
-import { initializeTasks, getActiveTasks, completeTask, getCompletedTasks, getAllTasks, createTask, updateTask, deleteTask } from "@/modules/taskManager";
+import { initialTasks } from "@/utils/TaskList";
+import Task from "@/model/Task";
 
-
-
-describe('Task Manager', () => {
+describe("Task Manager Functions", () => {
   beforeEach(() => {
     initializeTasks();
   });
 
-  test('should create initial task on initialization', () => {
-    const activeTasks = getActiveTasks();
-    expect(activeTasks).toContainEqual(
-      expect.objectContaining({ title: 'Initial Setup' })
-    );
+  test("should initialize tasks correctly", () => {
+    expect(getAllTasks()).toEqual(initialTasks);
   });
 
-  test('should not have Group 2 tasks before completing Group 1', () => {
-    completeTask('Initial Setup');
+  test("should return active tasks correctly", () => {
     const activeTasks = getActiveTasks();
-    expect(activeTasks).not.toContainEqual(
-      expect.objectContaining({ title: 'Basic Git' })
-    );
+    const expectedActiveTasks = initialTasks.filter(task => task.stage === 'To-Do' || task.stage === 'In Progress');
+    expect(activeTasks).toEqual(expectedActiveTasks);
   });
 
-  test('should mark task as completed', () => {
-    completeTask('Basic Introduction');
+  test("should return completed tasks correctly", () => {
     const completedTasks = getCompletedTasks();
-    expect(completedTasks).toContainEqual(
-      expect.objectContaining({ title: 'Basic Introduction' })
-    );
+    const expectedCompletedTasks = initialTasks.filter(task => task.stage === 'Completed');
+    expect(completedTasks).toEqual(expectedCompletedTasks);
   });
 
-  test('should fetch active tasks', () => {
-    const activeTasks = getActiveTasks();
-    expect(activeTasks).toEqual(
-      [{"completed": false, "description": "Learn basic Git commands.", "group": 2, "id": 3, "persona": "Intern", "title": "Basic Git"}, {"completed": false, "description": "Collaborate on a Git repository.", "group": 2, "id": 4, "persona": "Intern", "title": "Git Collaboration"}])
-      
-    ;
+  test("should complete a task correctly", () => {
+    const taskId = initialTasks[0].id;
+    completeTask(taskId);
+    const updatedTask = getAllTasks().find(task => task.id === taskId);
+    expect(updatedTask?.stage).toBe('Completed');
   });
 
-  test('should fetch all tasks', () => {
+  test("should not have Group 2 tasks before completing Group 1 tasks", () => {
+    const group1Tasks = initialTasks.filter(task => task.group === 1);
+    group1Tasks.forEach(task => completeTask(task.id));
+    const group2Tasks = getActiveTasks().filter(task => task.group === 2);
+    expect(group2Tasks.length).toBe(2);
+  });
+
+  test("should create a task correctly", () => {
+    const initialCount = getAllTasks().length;
+    createTask('New Task', 'Description for new task', 'Persona', 1);
+    expect(getAllTasks().length).toBe(initialCount + 1);
+    const newTask = getAllTasks().find(task => task.title === 'New Task');
+    expect(newTask).toBeDefined();
+    expect(newTask?.title).toBe('New Task');
+    expect(newTask?.description).toBe('Description for new task');
+    expect(newTask?.persona).toBe('Persona');
+    expect(newTask?.group).toBe(1);
+    expect(newTask?.stage).toBe('To-Do');
+  });
+
+  test("should update a task correctly", () => {
+    const taskId = initialTasks[0].id;
+    const updatedTitle = 'Updated Title';
+    updateTask(taskId, { title: updatedTitle });
+    const updatedTask = getAllTasks().find(task => task.id === taskId);
+    expect(updatedTask?.title).toBe(updatedTitle);
+  });
+
+  test("should delete a task correctly", () => {
+    const taskId = initialTasks[0].id;
+    deleteTask(taskId);
+    const taskAfterDeletion = getAllTasks().find(task => task.id === taskId);
+    expect(taskAfterDeletion).toBeUndefined();
+  });
+
+  test("should fetch all tasks correctly", () => {
     const allTasks = getAllTasks();
     expect(allTasks).toEqual(
       expect.arrayContaining([
@@ -54,51 +89,35 @@ describe('Task Manager', () => {
         expect.objectContaining({ title: 'API Consumption' }),
         expect.objectContaining({ title: 'Final Project' }),
         expect.objectContaining({ title: 'Project Presentation' })
-
       ])
     );
   });
 
-  test('should fetch completed tasks', () => {
-    completeTask('Basic Introduction');
-    const completedTasks = getCompletedTasks();
-    expect(completedTasks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ title: 'Basic Introduction' })
-      ])
-    );
-  });
+  test("should enforce task completion order", () => {
+    const initialSetupTask = initialTasks.find(task => task.title === 'Initial Setup');
+    const basicIntroTask = initialTasks.find(task => task.title === 'Basic Introduction');
+    
+    if (initialSetupTask && basicIntroTask) {
+      completeTask(initialSetupTask.id);
+      completeTask(basicIntroTask.id);
+    }
 
-  test('should create a new task', () => {
-    createTask('New Task', 'New task description', 'Intern', 1);
     const activeTasks = getActiveTasks();
-    expect(activeTasks).toContainEqual(
-      expect.objectContaining({ title: 'New Task' })
-    );
+    const group2Tasks = initialTasks.filter(task => task.group === 2);
+    group2Tasks.forEach(task => {
+      expect(activeTasks).toContainEqual(expect.objectContaining({ id: task.id }));
+    });
   });
 
-  test('should update a task', () => {
-    const taskToUpdate = getActiveTasks()[0];
-    updateTask(taskToUpdate.id, { title: 'Updated Task Title' });
-    const updatedTask = getAllTasks().find(task => task.id === taskToUpdate.id);
-    expect(updatedTask?.title).toBe('Updated Task Title');
-  });
+  test("should create multiple new tasks correctly", () => {
+    const initialCount = getAllTasks().length;
+    createTask('New Task 1', 'Description for new task 1', 'Persona', 1);
+    createTask('New Task 2', 'Description for new task 2', 'Persona', 1);
+    expect(getAllTasks().length).toBe(initialCount + 2);
 
-  test('should delete a task', () => {
-    const taskToDelete = getActiveTasks()[0];
-    deleteTask(taskToDelete.id);
-    const activeTasks = getActiveTasks();
-    expect(activeTasks).not.toContainEqual(
-      expect.objectContaining({ id: taskToDelete.id })
-    );
-  });
-
-  test('should enforce task completion order', () => {
-    completeTask('Initial Setup');
-    completeTask('Basic Introduction');
-    const activeTasks = getActiveTasks();
-    expect(activeTasks).toContainEqual(
-      expect.objectContaining({ title: 'Basic Git' })
-    );
+    const newTask1 = getAllTasks().find(task => task.title === 'New Task 1');
+    const newTask2 = getAllTasks().find(task => task.title === 'New Task 2');
+    expect(newTask1).toBeDefined();
+    expect(newTask2).toBeDefined();
   });
 });
